@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>考試倒數系統</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #f0f0f0;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      background: #333;
+      color: white;
+    }
+    #status {
+      font-size: 3rem;
+      margin-top: 3rem;
+    }
+    #countdown {
+      font-size: 14rem;
+      margin-top: 5rem;
+    }
+    .top-buttons {
+      display: flex;
+      gap: 1rem;
+    }
+    .top-buttons button {
+      font-size: 1rem;
+      padding: 0.5rem 1rem;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    #settings, #examCustom {
+      display: none;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      padding: 1rem;
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 500px;
+      height: 400px;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+    #closeSettings, #closeExamCustom {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #ccc;
+      border: none;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .period-select {
+      margin: 0.5rem 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .period-select label {
+      flex: 1;
+      text-align: left;
+    }
+    .period-select select {
+      flex: 1;
+    }
+    #footer {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      font-size: 0.9rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>考試倒數</h1>
+    <div class="top-buttons">
+      <button id="examCustomBtn">自定倒數</button>
+      <button id="settingsBtn">設定</button>
+    </div>
+  </header>
+
+  <div id="status">載入中...</div>
+  <div id="countdown">--:--:--</div>
+
+  <div id="settings">
+    <button id="closeSettings">✕</button>
+    <h2>設定考科</h2>
+    <div id="subjectSettings"></div>
+    <div id="footer">by ha_sean11</div>
+  </div>
+
+  <div id="examCustom">
+    <button id="closeExamCustom">✕</button>
+    <h2>自定倒數</h2>
+    <label>倒數分鐘：<input type="number" id="customMinutes" min="1"></label>
+    <br><br>
+    <label>內容：<input type="text" id="customContent"></label>
+    <br><br>
+    <button id="startCustomCountdown">開始倒數</button>
+    <button id="cancelCustomCountdown">取消倒數</button>
+    <button id="backToMain">返回</button>
+    <div id="footer">by ha_sean11</div>
+  </div>
+
+  <script>
+    const periods = [
+      { start: "08:00", end: "08:50" },
+      { start: "09:00", end: "09:50" },
+      { start: "10:00", end: "10:50" },
+      { start: "11:00", end: "11:50" },
+      { start: "11:59", end: "13:10", break: true },
+      { start: "13:10", end: "14:00" },
+      { start: "14:10", end: "15:00" },
+      { start: "15:10", end: "16:00" },
+    ];
+
+    const subjects = [
+        "上課/自習", "國文", "數學", "英文","初階文法","中階文法","英語聽講", "基電","電學","電子","電工機械","冷凍原理","微處理機",
+        "歷史","地理","公民","生物","物理","化學","地科","國防","體育","生涯規劃","健康","資訊","數位科技","數位邏輯","商業概論","作文"
+    ];
+
+    const settingsDiv = document.getElementById("settings");
+    const subjectSettings = document.getElementById("subjectSettings");
+    const countdownEl = document.getElementById("countdown");
+    const statusEl = document.getElementById("status");
+    const examCustomDiv = document.getElementById("examCustom");
+
+    let customCountdown = null;
+
+    const getTodayDate = () => new Date().toISOString().split('T')[0];
+
+    function initSettings() {
+      subjectSettings.innerHTML = "";
+      periods.forEach((p, i) => {
+        const saved = localStorage.getItem(getTodayDate() + "_subj_" + i) || "上課/自習";
+        const div = document.createElement("div");
+        div.className = "period-select";
+        div.innerHTML = `<label>${p.start}~${p.end}</label>
+          <select data-index="${i}">
+            ${subjects.map(subj => `<option${subj === saved ? " selected" : ""}>${subj}</option>`).join('')}
+          </select>`;
+        subjectSettings.appendChild(div);
+      });
+    }
+
+    subjectSettings.addEventListener("change", (e) => {
+      const idx = e.target.getAttribute("data-index");
+      const value = e.target.value;
+      localStorage.setItem(getTodayDate() + "_subj_" + idx, value);
+    });
+
+    document.getElementById("settingsBtn").onclick = () => {
+      settingsDiv.style.display = settingsDiv.style.display === "none" ? "block" : "none";
+    };
+
+    document.getElementById("closeSettings").onclick = () => {
+      settingsDiv.style.display = "none";
+    };
+
+    document.getElementById("examCustomBtn").onclick = () => {
+      examCustomDiv.style.display = "block";
+      document.getElementById("settingsBtn").style.display = "none";
+      document.getElementById("examCustomBtn").style.display = "none";
+    };
+
+    document.getElementById("closeExamCustom").onclick = () => {
+      examCustomDiv.style.display = "none";
+      document.getElementById("settingsBtn").style.display = "inline-block";
+      document.getElementById("examCustomBtn").style.display = "inline-block";
+    };
+
+    document.getElementById("cancelCustomCountdown").onclick = () => {
+      customCountdown = null;
+      countdownEl.textContent = "--:--:--";
+      statusEl.textContent = "已取消倒數";
+    };
+
+    document.getElementById("backToMain").onclick = () => {
+      examCustomDiv.style.display = "none";
+      document.getElementById("settingsBtn").style.display = "inline-block";
+      document.getElementById("examCustomBtn").style.display = "inline-block";
+    };
+
+    document.getElementById("startCustomCountdown").onclick = () => {
+      const minutes = parseInt(document.getElementById("customMinutes").value);
+      const content = document.getElementById("customContent").value.trim();
+      if (!minutes || !content) return;
+
+      const endTime = Date.now() + minutes * 60000;
+      customCountdown = { endTime, content };
+    };
+
+    function updateCountdown() {
+      const now = Date.now();
+
+      if (customCountdown && customCountdown.endTime > now) {
+        const diff = customCountdown.endTime - now;
+        countdownEl.textContent = formatMs(diff);
+        statusEl.textContent = `倒數中：「${customCountdown.content}」`;
+        return;
+      } else if (customCountdown) {
+        countdownEl.textContent = "00:00:00";
+        statusEl.textContent = `「${customCountdown.content}」已結束！`;
+        customCountdown = null;
+        return;
+      }
+
+      const current = new Date();
+      const nowMs = current.getTime();
+
+      let found = false;
+
+      for (let i = 0; i < periods.length; i++) {
+        const p = periods[i];
+        const start = new Date(current.toDateString() + ' ' + p.start);
+        const end = new Date(current.toDateString() + ' ' + p.end);
+
+        if (nowMs < start.getTime()) {
+          const subj = localStorage.getItem(getTodayDate() + "_subj_" + i) || "上課/自習";
+          const diff = start - current;
+          countdownEl.textContent = formatMs(diff);
+          statusEl.textContent = `下課中 下節考「${subj}」`;
+          found = true;
+          break;
+        } else if (nowMs >= start.getTime() && nowMs <= end.getTime()) {
+          const subj = p.break ? "午休" : (localStorage.getItem(getTodayDate() + "_subj_" + i) || "上課/自習");
+          const diff = end - current;
+          countdownEl.textContent = formatMs(diff);
+          statusEl.textContent = `${p.break ? "午休中" : `考「${subj}」中`} 剩餘時間`;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        countdownEl.textContent = "--:--:--";
+        statusEl.textContent = "考完了~~🎉";
+      }
+    }
+
+    function formatMs(ms) {
+      const total = Math.floor(ms / 1000);
+      const h = String(Math.floor(total / 3600)).padStart(2, '0');
+      const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+      const s = String(total % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    initSettings();
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+  </script>
+</body>
+</html>
